@@ -54,17 +54,40 @@ jobs:
           }
           "@ | Set-Content -Encoding UTF8 Telegram\Constants.Secret.cs
 
+      - name: Prepare cache directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+
       - name: Restore build caches
         uses: actions/cache/restore@v4
         with:
           path: |
             vcpkg_installed
             vcpkg-cache
+            Libraries\tdjson\x64-windows
             C:\Users\runneradmin\AppData\Local\NuGet\Cache
-          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-${{ github.run_id }}
           restore-keys: |
-            unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
+            unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-
             unigram-${{ runner.os }}-
+
+      - name: Build TDLib
+        shell: pwsh
+        run: |
+          $tdjson = "Libraries\tdjson\x64-windows\tdjson.dll"
+          if (Test-Path $tdjson) {
+            Write-Host "Using cached TDLib: $tdjson"
+            exit 0
+          }
+
+          Push-Location Libraries\tdjson
+          try {
+            .\build.ps1 -arch x64 -target windows
+          }
+          finally {
+            Pop-Location
+          }
 
       - name: Build WinUI Debug Bundle
         shell: pwsh
@@ -87,8 +110,9 @@ jobs:
           path: |
             vcpkg_installed
             vcpkg-cache
+            Libraries\tdjson\x64-windows
             C:\Users\runneradmin\AppData\Local\NuGet\Cache
-          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-${{ github.run_id }}
 
       - name: Upload artifact
         if: always()
