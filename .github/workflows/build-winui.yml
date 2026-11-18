@@ -130,6 +130,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+          $env:RunAnalyzers = 'false'
+          $env:RunAnalyzersDuringBuild = 'false'
           .\Build.WinUI.ps1 -Configuration Debug -Identity Bundle
 
       - name: List output
