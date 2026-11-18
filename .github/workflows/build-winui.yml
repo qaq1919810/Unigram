@@ -1,0 +1,89 @@
+name: build-winui-debug
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 350
+    env:
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}\vcpkg-cache,readwrite'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install .NET 11
+        shell: pwsh
+        run: |
+          $sdks = (& dotnet --list-sdks) -join "`n"
+          if ($sdks -notmatch '11\.') {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Channel 11.0 -InstallDir "C:\Program Files\dotnet"
+          }
+          & dotnet --list-sdks
+
+      - name: Write Constants.Secret.cs
+        shell: pwsh
+        env:
+          API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          $apiId = if ($env:API_ID) { $env:API_ID } else { "0" }
+          $apiHash = if ($env:API_HASH) { $env:API_HASH } else { "" }
+
+          @"
+          namespace Telegram
+          {
+              public static partial class Constants
+              {
+                  static Constants()
+                  {
+                      ApiId = $apiId;
+                      ApiHash = "$apiHash";
+                      AppChannel = "";
+                  }
+              }
+          }
+          "@ | Set-Content -Encoding UTF8 Telegram\Constants.Secret.cs
+
+      - name: Cache vcpkg and NuGet
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg_installed
+            vcpkg-cache
+            C:\Users\runneradmin\AppData\Local\NuGet\Cache
+          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            unigram-${{ runner.os }}-
+
+      - name: Build WinUI Debug Bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+          .\Build.WinUI.ps1 -Configuration Debug -Identity Bundle
+
+      - name: List output
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem Telegram\AppPackages -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigram-winui-debug
+          path: |
+            Telegram\AppPackages\**
+            Telegram\bin\winui-unpackaged\x64\Debug\**
+          if-no-files-found: warn
