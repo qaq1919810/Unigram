@@ -72,6 +72,43 @@ jobs:
             unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-
             unigram-${{ runner.os }}-
 
+      - name: Install gperf
+        shell: pwsh
+        run: |
+          if (Get-Command gperf.exe -ErrorAction SilentlyContinue) {
+            gperf --version
+            exit 0
+          }
+
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $root) { $root = "C:\vcpkg" }
+          $vcpkg = Join-Path $root "vcpkg.exe"
+          if (-not (Test-Path $vcpkg)) {
+            $vcpkg = "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\vcpkg\vcpkg.exe"
+          }
+
+          Push-Location $root
+          try {
+            & $vcpkg install "gperf:x64-windows" --clean-after-build
+          }
+          finally {
+            Pop-Location
+          }
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg gperf install failed" }
+
+          $gperf = $null
+          foreach ($candidate in @($root, "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\vcpkg")) {
+            if ($gperf) { break }
+            $gperf = Get-ChildItem $candidate -Recurse -Filter gperf.exe -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          }
+          if (-not $gperf) { throw "gperf.exe not found" }
+
+          $dir = Split-Path $gperf.FullName
+          $dir | Out-File -Append $env:GITHUB_PATH
+          $env:PATH = "$dir;$env:PATH"
+          gperf --version
+
       - name: Build TDLib
         shell: pwsh
         run: |
