@@ -36,8 +36,8 @@ jobs:
           API_ID: ${{ secrets.TELEGRAM_API_ID }}
           API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
-          $apiId = (if ($env:API_ID) { $env:API_ID } else { "0" }).Trim()
-          $apiHash = (if ($env:API_HASH) { $env:API_HASH } else { "" }).Trim()
+          $apiId = if ($env:API_ID) { ($env:API_ID).Trim() } else { "0" }
+          $apiHash = if ($env:API_HASH) { ($env:API_HASH).Trim() } else { "" }
 
           @"
           namespace Telegram
