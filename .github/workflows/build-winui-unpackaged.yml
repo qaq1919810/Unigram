@@ -139,6 +139,7 @@ jobs:
           New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
           $env:RunAnalyzers = 'false'
           $env:RunAnalyzersDuringBuild = 'false'
+          $env:TdParsers = 'Reader'
           $env:WindowsAppSDKSelfContained = 'true'
           .\Build.WinUI.ps1 -Configuration Debug -Unpackaged
 

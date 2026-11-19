@@ -139,6 +139,8 @@ jobs:
           New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
           $env:RunAnalyzers = 'false'
           $env:RunAnalyzersDuringBuild = 'false'
+          $env:TdParsers = 'Reader'
+          $env:WinUIPackageVersion = '13.0.0.1'
           .\Build.WinUI.ps1 -Configuration Debug -Identity Bundle
 
       - name: List output

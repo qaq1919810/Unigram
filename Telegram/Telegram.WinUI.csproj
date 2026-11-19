@@ -428,7 +428,7 @@
        generator through it, and it is not rewritten when the property alone changes, so
        the next build emits one parser set against the other's constants. -->
   <PropertyGroup>
-    <TdParsers>Pointer</TdParsers>
+    <TdParsers Condition="'$(TdParsers)' == ''">Pointer</TdParsers>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TdParsers)' != 'Pointer'">
     <DefineConstants>$(DefineConstants);TD_READER_PARSER</DefineConstants>
