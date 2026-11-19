@@ -1,0 +1,171 @@
+name: build-winui-unpackaged
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 350
+    env:
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}\vcpkg-cache,readwrite'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install .NET 11
+        shell: pwsh
+        run: |
+          $sdks = (& dotnet --list-sdks) -join "`n"
+          if ($sdks -notmatch '11\.') {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Channel 11.0 -InstallDir "C:\Program Files\dotnet"
+          }
+          & dotnet --list-sdks
+
+      - name: Write Constants.Secret.cs
+        shell: pwsh
+        env:
+          API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          $apiId = if ($env:API_ID) { $env:API_ID } else { "0" }
+          $apiHash = if ($env:API_HASH) { $env:API_HASH } else { "" }
+
+          @"
+          namespace Telegram
+          {
+              public static partial class Constants
+              {
+                  static Constants()
+                  {
+                      ApiId = $apiId;
+                      ApiHash = "$apiHash";
+                      AppChannel = "";
+                  }
+              }
+          }
+          "@ | Set-Content -Encoding UTF8 Telegram\Constants.Secret.cs
+
+      - name: Prepare cache directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+
+      - name: Restore build caches
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg_installed
+            vcpkg-cache
+            Libraries\tdjson\x64-windows
+            Libraries\tdjson\td_api.tl
+            C:\Users\runneradmin\AppData\Local\NuGet\Cache
+          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-${{ github.run_id }}
+          restore-keys: |
+            unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-
+            unigram-${{ runner.os }}-
+
+      - name: Install gperf
+        shell: pwsh
+        run: |
+          if (Get-Command gperf.exe -ErrorAction SilentlyContinue) {
+            gperf --version
+            exit 0
+          }
+
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $root) { $root = "C:\vcpkg" }
+          $vcpkg = Join-Path $root "vcpkg.exe"
+          if (-not (Test-Path $vcpkg)) {
+            $vcpkg = "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\vcpkg\vcpkg.exe"
+          }
+
+          Push-Location $root
+          try {
+            & $vcpkg install "gperf:x64-windows" --clean-after-build
+          }
+          finally {
+            Pop-Location
+          }
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg gperf install failed" }
+
+          $gperf = $null
+          foreach ($candidate in @($root, "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\vcpkg")) {
+            if ($gperf) { break }
+            $gperf = Get-ChildItem $candidate -Recurse -Filter gperf.exe -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          }
+          if (-not $gperf) { throw "gperf.exe not found" }
+
+          $dir = Split-Path $gperf.FullName
+          $dir | Out-File -Append $env:GITHUB_PATH
+          $env:PATH = "$dir;$env:PATH"
+          gperf --version
+
+      - name: Build TDLib
+        shell: pwsh
+        run: |
+          $tdjson = "Libraries\tdjson\x64-windows\tdjson.dll"
+          $schema = "Libraries\tdjson\td_api.tl"
+
+          if (-not (Test-Path $schema)) {
+            Copy-Item "Libraries\tdlib\td\generate\scheme\td_api.tl" $schema -Force
+          }
+
+          if (Test-Path $tdjson) {
+            Write-Host "Using cached TDLib: $tdjson"
+            exit 0
+          }
+
+          Push-Location Libraries\tdjson
+          try {
+            .\build.ps1 -arch x64 -target windows
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Build WinUI Unpackaged
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vcpkg-cache | Out-Null
+          $env:RunAnalyzers = 'false'
+          $env:RunAnalyzersDuringBuild = 'false'
+          $env:WindowsAppSDKSelfContained = 'true'
+          .\Build.WinUI.ps1 -Configuration Debug -Unpackaged
+
+      - name: List output
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem Telegram\bin\winui-unpackaged\x64\Debug -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length
+
+      - name: Save build caches
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg_installed
+            vcpkg-cache
+            Libraries\tdjson\x64-windows
+            Libraries\tdjson\td_api.tl
+            C:\Users\runneradmin\AppData\Local\NuGet\Cache
+          key: unigram-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Libraries/tdlib/CMakeLists.txt', 'Libraries/tdjson/build.ps1') }}-${{ github.run_id }}
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigram-winui-portable
+          path: Telegram\bin\winui-unpackaged\x64\Debug\**
+          if-no-files-found: warn
