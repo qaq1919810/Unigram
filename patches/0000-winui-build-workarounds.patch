@@ -1,0 +1,19 @@
+﻿commit 8851fd254c40771c100d8d477c5ff898f3572e05
+Author: zwkynq <134186606+qaq1919810@users.noreply.github.com>
+Date:   Thu Nov 19 08:09:26 2026 +0800
+
+    Allow WinUI build without private wallet engine
+
+diff --git a/Telegram/Telegram.WinUI.csproj b/Telegram/Telegram.WinUI.csproj
+index c8fb0cf79..d1a65886c 100644
+--- a/Telegram/Telegram.WinUI.csproj
++++ b/Telegram/Telegram.WinUI.csproj
+@@ -334,7 +334,7 @@
+     <Content Update="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+     <!-- Content rather than ReferenceCopyLocalPaths, for the reason Telegram.Modern.csproj gives:
+          the engine has no project to arrive from, and copy-local never reaches the package layout. -->
+-    <Content Include="$(TelegramRoot)Libraries\wallet-engine\$(Platform)\wallet_engine.dll" Link="wallet_engine.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
++    <Content Include="$(TelegramRoot)Libraries\wallet-engine\$(Platform)\wallet_engine.dll" Condition="Exists('$(TelegramRoot)Libraries\wallet-engine\$(Platform)\wallet_engine.dll')" Link="wallet_engine.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+     <Content Include="..\Libraries\libprisma\libprisma\grammars.dat" Link="Assets\grammars.dat" CopyToOutputDirectory="PreserveNewest" />
+     <Content Include="..\Libraries\MicroTeX\res\fonts\**\*.ttf" Link="res\fonts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+     <!-- The widget sandbox's bundles, which WidgetView.LoadResources reads. -->

@@ -1,0 +1,59 @@
+﻿diff --git a/Telegram.Native/Media/MediaEngine.cpp b/Telegram.Native/Media/MediaEngine.cpp
+index 0afbd2124..a0ffecc3d 100644
+--- a/Telegram.Native/Media/MediaEngine.cpp
++++ b/Telegram.Native/Media/MediaEngine.cpp
+@@ -94,11 +94,11 @@ namespace winrt::Telegram::Native::Media::implementation
+         // Demuxing stops this far ahead of playback, or at this many bytes queued, whichever comes
+         // first. RemoteFileSource downloads as far as it is read, so this is the read-ahead too.
+         constexpr double kMaxAhead = 30;
+-        constexpr int64_t kMaxQueuedBytes = 64 * 1024 * 1024;
++        constexpr int64_t kMaxQueuedBytes = 256 * 1024 * 1024;
+ 
+         // Having run dry, playback waits for this much before going on, so that a slow link makes
+         // it stop once and then play, rather than stutter on every packet.
+-        constexpr double kResumeAhead = 3;
++        constexpr double kResumeAhead = 1.5;
+ 
+         // How much audio is decoded before the clock starts, and how far ahead it is decoded.
+         constexpr double kAudioPreroll = 0.2;
+@@ -120,9 +120,9 @@ namespace winrt::Telegram::Native::Media::implementation
+         // already reads its own 30 seconds ahead: this only has to keep a read from waiting on the
+         // round trip of asking for more, and anything past it is downloaded for nothing when the
+         // quality changes or the viewer leaves.
+-        constexpr double kDownloadAhead = 5;
++        constexpr double kDownloadAhead = 15;
+         constexpr int64_t kMinDownloadWindow = 1024 * 1024;
+-        constexpr int64_t kMaxDownloadWindow = 16 * 1024 * 1024;
++        constexpr int64_t kMaxDownloadWindow = 256 * 1024 * 1024;
+ 
+         // TDLib cancels in-flight parts outside the window whenever it moves, so a window on a part
+         // boundary keeps the parts it protects exactly the same as reads move along.
+diff --git a/Telegram/Streams/RemoteRendition.cs b/Telegram/Streams/RemoteRendition.cs
+index 260fc00c3..9763fbe7c 100644
+--- a/Telegram/Streams/RemoteRendition.cs
++++ b/Telegram/Streams/RemoteRendition.cs
+@@ -67,17 +67,17 @@ namespace Telegram.Streams
+                 }
+             }
+ 
+-            if (renditions.Count == 0)
++            // The original is always selectable; automatic quality still prefers the HLS
++            // renditions, so it is only used when picked by hand.
++            var original = video.Video;
++            if (original.VideoValue.Size > 0)
+             {
+-                return null;
++                renditions.Add(new RemoteRendition(clientService, original.VideoValue, null, original.Width, original.Height, duration, rank));
+             }
+ 
+-            // The original only once it is on disk: then nothing plays better, and nothing more has
+-            // to be downloaded. Before that it is usually far larger than the best alternative.
+-            var original = video.Video;
+-            if (original.VideoValue.Local.IsDownloadingCompleted)
++            if (renditions.Count == 0)
+             {
+-                renditions.Add(new RemoteRendition(clientService, original.VideoValue, null, original.Width, original.Height, duration, rank));
++                return null;
+             }
+ 
+             renditions.Sort(CompareRenditions);

@@ -94,11 +94,11 @@ namespace winrt::Telegram::Native::Media::implementation
         // Demuxing stops this far ahead of playback, or at this many bytes queued, whichever comes
         // first. RemoteFileSource downloads as far as it is read, so this is the read-ahead too.
         constexpr double kMaxAhead = 30;
-        constexpr int64_t kMaxQueuedBytes = 64 * 1024 * 1024;
+        constexpr int64_t kMaxQueuedBytes = 256 * 1024 * 1024;
 
         // Having run dry, playback waits for this much before going on, so that a slow link makes
         // it stop once and then play, rather than stutter on every packet.
-        constexpr double kResumeAhead = 3;
+        constexpr double kResumeAhead = 1.5;
 
         // How much audio is decoded before the clock starts, and how far ahead it is decoded.
         constexpr double kAudioPreroll = 0.2;
@@ -120,9 +120,9 @@ namespace winrt::Telegram::Native::Media::implementation
         // already reads its own 30 seconds ahead: this only has to keep a read from waiting on the
         // round trip of asking for more, and anything past it is downloaded for nothing when the
         // quality changes or the viewer leaves.
-        constexpr double kDownloadAhead = 5;
+        constexpr double kDownloadAhead = 15;
         constexpr int64_t kMinDownloadWindow = 1024 * 1024;
-        constexpr int64_t kMaxDownloadWindow = 16 * 1024 * 1024;
+        constexpr int64_t kMaxDownloadWindow = 256 * 1024 * 1024;
 
         // TDLib cancels in-flight parts outside the window whenever it moves, so a window on a part
         // boundary keeps the parts it protects exactly the same as reads move along.

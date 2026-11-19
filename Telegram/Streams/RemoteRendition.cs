@@ -67,17 +67,17 @@ namespace Telegram.Streams
                 }
             }
 
+            // The original is always selectable; automatic quality still prefers the HLS
+            // renditions, so it is only used when picked by hand.
+            var original = video.Video;
+            if (original.VideoValue.Size > 0)
+            {
+                renditions.Add(new RemoteRendition(clientService, original.VideoValue, null, original.Width, original.Height, duration, rank));
+            }
+
             if (renditions.Count == 0)
             {
                 return null;
-            }
-
-            // The original only once it is on disk: then nothing plays better, and nothing more has
-            // to be downloaded. Before that it is usually far larger than the best alternative.
-            var original = video.Video;
-            if (original.VideoValue.Local.IsDownloadingCompleted)
-            {
-                renditions.Add(new RemoteRendition(clientService, original.VideoValue, null, original.Width, original.Height, duration, rank));
             }
 
             renditions.Sort(CompareRenditions);
